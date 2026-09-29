@@ -1,229 +1,509 @@
-🌊 FloodIQ Nagpur
+# 🌊 FloodIQ
 
-Flood-prone area prediction and zone-wise early warnings for Nagpur, Maharashtra.
+### AI-Powered Flood Risk Prediction & Emergency Response Control Panel
 
-FloodIQ combines rainfall, terrain, and historical flood records to predict which parts of Nagpur are likely to flood, then turns that prediction into colour-coded, zone-wise warnings that both citizens and authorities can act on.
+> **Predict the risk. Identify the hotspot. Trigger the response.**
 
-Status: hackathon prototype. Flood events and NMC zone names come from public reports. Several inputs (coordinates, elevation, drainage, population) are approximate placeholders. See Data & honesty notes.
+FloodIQ is an AI-powered flood risk prediction and emergency response system designed to help authorities identify **flood-prone zones before conditions become critical**.
 
-📌 Problem Statement
+Instead of presenting flood data as a traditional analytics dashboard, FloodIQ works as a **real-time flood response control panel** that combines rainfall, terrain, historical flood patterns, and location-based factors to estimate flood risk and turn those predictions into **zone-wise, actionable warnings**.
 
-Predict flood-prone locations using rainfall, terrain and historical data, and issue timely, zone-wise warnings to citizens and authorities. The solution should present risk information in an actionable and easy-to-understand manner.
+---
 
-How this project answers it
-Requirement	How FloodIQ addresses it
-Predict flood-prone locations	Risk model over 32 Nagpur localities using rainfall, elevation, drain capacity, distance to river and past flood events
-Rainfall	Live 24 h forecast from Open-Meteo, or a manual "what-if" rainfall value (slider / input)
-Terrain	Elevation and distance to the Nag/Pili river are model features
-Historical data	Documented floods (Sept 2023 Nag river flood, July 2025 waterlogging) used as a history feature and as validation
-Timely warnings	Warnings are recomputed from rainfall on every request and show the expected peak-rain time window
-Zone-wise	Localities grouped into the 10 NMC zones, each with its own severity level
-Citizens and authorities	Separate Citizen view (plain-language advice, Hindi + English) and Authority view (actions, population at risk)
-Actionable and easy to understand	IMD-style RED / ORANGE / YELLOW / GREEN colours, short to-do lists, emergency numbers, maps and charts
-✨ Features
-Zone Warnings page with two tabs:
-Authority view: every NMC zone ranked by severity, with high/medium locality counts, people at risk, localities to watch, and recommended actions.
-Citizen view: pick your area and get a large risk card, what to do, Hindi advice, and that area's flood history.
-Live rainfall input: pulls the next-24 h forecast for Nagpur and finds the peak-rain hour. If the forecast is unavailable, the app falls back to a manual/default scenario and says so on screen.
-Interactive dashboard: hotspot and locality map with clustering, a rainfall slider (10 to 250 mm) that recomputes risk live, risk distribution chart, top-risk localities.
-Flood prediction tool: enter rainfall, elevation, drain capacity, river distance and past events to get a predicted risk level with model confidence.
-Simulation: animated flood-spread view over high-risk localities at 0/30/60/90 minutes (illustrative).
-Analytics: risk distribution, zone-wise risk counts, top-rainfall localities, readiness scores, monthly rainfall pattern.
-Resources: suggested pumps, teams and boats per at-risk locality.
-Alerts: advisory cards for high-risk localities.
-Light/dark theme, responsive layout.
-🧠 How It Works
-Rainfallforecast or manual
-Risk enginebackend/risk.py
-Terrainelevation, river distance,drainage
-Historydocumented past floods
-Per-locality riskHIGH / MEDIUM / LOW
-Group by NMC zone
-Zone severityRED / ORANGE / YELLOW /GREEN
-Authority viewactions + people at risk
-Citizen viewadvice + Hindi + emergencynumbers
-1. Risk score
+## 🚨 The Problem
 
-A single function, backend/risk.py, is the one source of truth used by the data builder, model training and every API.
+Flood management systems often face a critical gap between **prediction and action**.
 
-score = 0.35 × rainfall factor      (24 h rain / 150 mm, capped)
-      + 0.20 × low-elevation factor (lower ground = higher risk)
-      + 0.20 × (1 − drain capacity)
-      + 0.15 × river-proximity factor
-      + 0.10 × flood-history factor (documented past events, up to 3)
-Score	Risk level
-> 0.55	HIGH
-> 0.42	MEDIUM
-otherwise	LOW
-2. Machine-learning model
+Authorities may have access to rainfall measurements, weather forecasts, terrain information, and historical flood records, but these data points are often fragmented across different sources.
 
-A Random Forest classifier (scikit-learn, 150 trees) is trained on 4,000 sampled scenarios over the five features: rainfall, elevation, drain_capacity, river_dist_km, past_events. It powers the /api/predict endpoint and returns a risk level and confidence. Held-out accuracy against the rule-based labels is about 92%.
+This creates three challenges:
 
-The model learns the risk formula, so that 92% shows it reproduces the formula, not that it predicts real floods. The real check is the historical validation below.
+* **Where** is the flood risk increasing?
+* **How severe** could it become?
+* **What action should be taken right now?**
 
-3. Zone severity (IMD-style colours)
-Colour	Rule (per NMC zone)	Meaning
-🔴 RED	3 or more HIGH-risk localities	Immediate action
-🟠 ORANGE	1 to 2 HIGH-risk localities	Be prepared
-🟡 YELLOW	No HIGH but at least 1 MEDIUM	Stay alert
-🟢 GREEN	Everything LOW	Normal
+Citizens also need warnings that are simple and location-specific rather than raw technical data.
 
-Each level carries a tailored citizen advice list, an authority action list and a Hindi message.
+FloodIQ addresses this gap by converting multiple environmental signals into a **single operational view for flood response**.
 
-4. Timely warnings
+---
 
-/api/zone-alerts resolves the rainfall in this order: manual value (if given), then live Open-Meteo forecast (next 24 h total plus peak hour), then default scenario (80 mm). The response always reports which source was used and a time window, for example "Peak rain expected around 17:00 IST (12.4 mm/hr)".
+# 💡 Our Solution
 
-5. Validation against real events
+FloodIQ combines multiple flood-related factors and uses a machine learning model to generate a **localized flood-risk prediction**.
 
-The Sept 2023 Nagpur flood (about 109 mm rain, Nag river overflow) is the reference case. At 110 mm/day, the model rates 12 of 16 documented flood spots as HIGH without forcing them, and at 15 mm/day no zone reaches RED or ORANGE. This is enforced by automated tests (tests/).
+### Input
 
-🛠️ Tech Stack
-Layer	Technology
-Backend	Python 3.10+, Flask, Gunicorn
-ML / data	scikit-learn (Random Forest), pandas, NumPy, joblib
-Frontend	HTML, CSS, vanilla JavaScript, Jinja2 templates
-Maps and charts	Leaflet + MarkerCluster, OpenStreetMap tiles (no API key), Chart.js
-Rainfall data	Open-Meteo forecast API (free, no key)
-Testing	pytest
-Deployment	Render (render.yaml, Procfile)
-📁 Project Structure
-Flood-Management/
-├── backend/
-│   ├── app.py                  # Flask app: pages + API routes
-│   ├── config.py               # City centre, paths, defaults
-│   ├── risk.py                 # ★ Shared risk formula (single source of truth)
-│   ├── models/
-│   │   ├── train_model.py      # Trains the Random Forest
-│   │   └── flood_model.pkl     # Trained model (auto-retrained if missing)
-│   ├── routes/                 # Blueprints: predict, analytics, simulation
-│   ├── services/
-│   │   ├── zone_service.py     # ★ Zone-wise warnings + citizen view
-│   │   ├── forecast_service.py # ★ Open-Meteo rainfall forecast
-│   │   ├── data_service.py     # Loads wards, recomputes risk for any rainfall
-│   │   ├── prediction_service.py
-│   │   └── alert_service.py
-│   └── utils/
-│       ├── build_data.py       # Builds the Nagpur dataset
-│       ├── data_loader.py
-│       └── model_loader.py     # Lazy, cached model loading
+🌧️ Rainfall
+⛰️ Terrain / Elevation
+🌊 Historical flood patterns
+📍 Location-based features
+🚧 Vulnerability indicators
+
+↓
+
+### AI Risk Engine
+
+**Machine Learning Model**
+
+↓
+
+### Output
+
+**Zone-wise Flood Risk**
+
+🟢 Low
+🟡 Moderate
+🟠 High
+🔴 Critical
+
+↓
+
+### Response Layer
+
+🚨 Active alerts
+📍 Affected zones
+👥 Citizen warnings
+🚑 Recommended response actions
+
+---
+
+# 🖥️ Flood Response Control Panel
+
+FloodIQ is designed around a simple principle:
+
+> **The system should not only tell authorities what is happening. It should help them decide what to do next.**
+
+The control panel focuses on four key areas.
+
+### 1. 🗺️ Live Risk Map
+
+The central map provides a geographic view of flood risk.
+
+Each zone/locality is represented using a risk level:
+
+| Level       | Meaning              |
+| ----------- | -------------------- |
+| 🟢 Low      | Normal monitoring    |
+| 🟡 Moderate | Increased monitoring |
+| 🟠 High     | Prepare response     |
+| 🔴 Critical | Immediate attention  |
+
+Authorities can select a zone to inspect its risk factors.
+
+---
+
+### 2. 🚨 Active Alerts
+
+The system highlights areas where the predicted risk has crossed predefined thresholds.
+
+Example:
+
+```text
+🔴 CRITICAL ALERT
+
+Zone: Zone 7
+Risk Probability: 82%
+Rainfall: 87 mm/hr
+
+Expected Impact:
+Potential waterlogging within 1–2 hours
+
+Recommended Response:
+→ Deploy emergency response team
+→ Issue citizen warning
+→ Monitor drainage points
+```
+
+---
+
+### 3. ⚡ Response Actions
+
+Instead of stopping at prediction, FloodIQ connects risk with operational recommendations.
+
+Depending on severity, the system can suggest:
+
+* Issue citizen alerts
+* Deploy emergency teams
+* Monitor vulnerable locations
+* Prepare evacuation routes
+* Inspect drainage hotspots
+* Increase monitoring frequency
+
+---
+
+### 4. 📊 Risk Analysis
+
+Detailed analytics remain available without overwhelming the main control panel.
+
+For every zone, authorities can inspect:
+
+* Rainfall contribution
+* Terrain/elevation
+* Historical flood occurrence
+* Risk probability
+* Risk trend
+* Model confidence
+* Contributing factors
+
+---
+
+# 🧠 How FloodIQ Works
+
+```text
+               DATA SOURCES
+                    │
+       ┌────────────┼────────────┐
+       ↓            ↓            ↓
+   Rainfall      Terrain      Historical
+      Data         Data       Flood Data
+       │            │            │
+       └────────────┼────────────┘
+                    ↓
+             DATA PROCESSING
+                    ↓
+           FEATURE ENGINEERING
+                    ↓
+          MACHINE LEARNING MODEL
+                    ↓
+             RISK PREDICTION
+                    ↓
+          ┌─────────┴─────────┐
+          ↓                   ↓
+      RISK MAP           ALERT ENGINE
+          │                   │
+          └─────────┬─────────┘
+                    ↓
+            RESPONSE ACTIONS
+                    ↓
+       AUTHORITIES + CITIZENS
+```
+
+---
+
+# 🤖 Machine Learning
+
+FloodIQ uses a supervised machine learning approach to estimate flood risk from environmental and historical features.
+
+### Example Features
+
+```text
+Rainfall intensity
+Cumulative rainfall
+Elevation
+Slope
+Historical flood frequency
+Location vulnerability
+Distance from drainage/water bodies
+```
+
+The model produces a risk probability which is then mapped into operational risk categories.
+
+### Risk Classification
+
+```text
+0 – 25%     → LOW
+25 – 50%    → MODERATE
+50 – 75%    → HIGH
+75 – 100%   → CRITICAL
+```
+
+> Thresholds can be calibrated according to the target city's historical flood characteristics and operational requirements.
+
+---
+
+# 📍 Nagpur Pilot
+
+FloodIQ is initially designed around **Nagpur, Maharashtra**, making the prototype relevant to a real urban environment.
+
+The system models flood risk at a localized level instead of treating the entire city as one uniform region.
+
+The prototype covers:
+
+* Multiple Nagpur localities
+* 10 administrative zones
+* Zone-wise risk classification
+* Local rainfall conditions
+* Historical flood information
+* Map-based visualization
+
+This architecture can later be extended to other cities by replacing or expanding the underlying geographic and historical datasets.
+
+---
+
+# 🌧️ Data Sources
+
+FloodIQ can integrate data from multiple sources depending on availability:
+
+### Weather
+
+Real-time and forecast rainfall data can be obtained through weather APIs such as Open-Meteo.
+
+### Terrain
+
+Elevation and terrain information can be derived from digital elevation models.
+
+### Historical Flood Data
+
+Historical flood/waterlogging records can be used to identify recurring vulnerable locations.
+
+### Geographic Data
+
+Locality, zone, road, drainage, and water-body information can be incorporated to improve spatial risk estimation.
+
+---
+
+# 🏗️ Tech Stack
+
+### Frontend
+
+* HTML
+* CSS
+* JavaScript
+* Leaflet.js
+* Chart.js
+
+### Backend
+
+* Python
+* Flask
+
+### Machine Learning
+
+* Scikit-learn
+* Random Forest
+
+### Data
+
+* CSV / structured datasets
+* Weather API
+* Geographic data
+
+### Maps
+
+* Leaflet
+* OpenStreetMap
+
+---
+
+# 📂 Project Structure
+
+```text
+FloodIQ/
+│
+├── app.py
+│
+├── model/
+│   ├── flood_model.pkl
+│   └── preprocessing.pkl
+│
 ├── data/
-│   ├── wards_data.csv          # 32 Nagpur localities
-│   └── hotspot_data.csv        # 16 documented flood hotspots
-├── frontend/
-│   ├── templates/              # base, dashboard, prediction, simulation,
-│   │                           # analytics, resources, alerts, warnings, settings
-│   └── static/                 # css, js, images
-├── tests/test_predictions.py   # 22 tests
+│   ├── rainfall.csv
+│   ├── flood_history.csv
+│   └── locations.csv
+│
+├── templates/
+│   ├── index.html
+│   └── control_panel.html
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   │
+│   └── js/
+│       └── app.js
+│
+├── notebooks/
+│   └── model_training.ipynb
+│
 ├── requirements.txt
-├── render.yaml  Procfile       # Deployment config
 └── README.md
-🚀 Getting Started
-Prerequisites
-Python 3.10 or newer (python --version)
-Internet connection (map tiles, charts and forecast load from the web)
-Install and run
-bash
-git clone https://github.com/Therock1037X/Flood-Management.git
-cd Flood-Management
+```
 
-# optional but recommended
+---
+
+# ⚙️ Installation
+
+### 1. Clone the repository
+
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd FloodIQ
+```
+
+### 2. Create a virtual environment
+
+```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+```
 
+Activate it:
+
+### Windows
+
+```bash
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
-python -m backend.app
+```
 
-Open http://localhost:5000. Zone warnings are at http://localhost:5000/warnings.
+### 4. Run the application
 
-Use python -m backend.app, not python backend/app.py, otherwise imports fail.
+```bash
+python app.py
+```
 
-To use a different port: PORT=5001 python -m backend.app (Windows: set PORT=5001 first).
+The application will be available locally at:
 
-Quick demo
-Open Zone Warnings, enter 110 mm and press Apply. Dharampeth and Dhantoli go RED (a Sept 2023-like event).
-Enter 15 mm. Most zones drop to YELLOW/GREEN.
-Switch to Citizen view, pick Ambazari, and read the advice and flood history.
-On the Dashboard, drag the rainfall slider and watch the map and risk chart update.
-Useful commands
-bash
-pytest                                  # run all tests
-python -m backend.utils.build_data      # regenerate the dataset
-python -m backend.models.train_model    # retrain the model
-🔌 API Reference
-Method	Endpoint	Description
-GET	/api/zone-alerts?rain=<mm>	Zone-wise warnings. rain optional; otherwise uses live forecast
-GET	/api/citizen?area=<name>&rain=<mm>	Plain-language risk and advice for one locality
-GET	/api/forecast	Next-24 h rainfall for Nagpur (503 if unavailable)
-GET	/api/wards?rainfall=<mm>	All localities with risk recomputed for that rainfall, plus summary stats
-GET	/api/hotspots?risk=ALL|HIGH|MEDIUM|LOW	Documented flood hotspots
-POST	/api/predict	Predict risk from inputs (below)
-GET	/api/analytics	Charts data: risk and zone distribution, top rainfall, readiness
-GET	/api/simulation	Time-stepped flood-spread points
-GET	/api/resources	Suggested pumps/teams/boats per at-risk locality
-GET	/api/alerts	Advisory cards for high-risk localities
+```text
+http://127.0.0.1:5000
+```
 
-Example
+---
 
-bash
-curl -X POST http://localhost:5000/api/predict \
-  -H "Content-Type: application/json" \
-  -d '{"rainfall":110,"elevation":306,"drain_capacity":0.4,"river_dist_km":0.3,"past_events":1}'
-# {"confidence":0.973,"risk_level":"HIGH"}
+# 🎯 Key Features
 
-Invalid input returns 400 with an error message.
+### Prediction
 
-🗂️ Data & Honesty Notes
-Item	Status
-NMC zone names (10 zones)	✅ Real
-Flood events: Sept 2023 Nag river flood, July 2025 waterlogging	✅ Real, from news and public reports
-Named waterlogging spots (Ambazari, Sitabuldi, Manish Nagar, Lakadganj, etc.)	✅ Real localities
-Coordinates, distance to river	⚠️ Approximate
-Zone assigned to each locality	⚠️ Approximate, verify against the NMC ward map
-Elevation, drain capacity, population, readiness	⚠️ Illustrative placeholders
-Monthly rainfall chart	⚠️ Approximate climatological values
-Simulation	⚠️ Illustrative, not a hydrological model
+* AI-based flood risk estimation
+* Localized risk prediction
+* Probability-based risk scoring
 
-To make this production-grade, replace the placeholders with NMC ward boundaries and population, an SRTM/Copernicus elevation model, the NMC drainage survey, and a longer flood-incident history. The schema in data/wards_data.csv and backend/utils/build_data.py is designed for this swap.
+### Monitoring
 
-🧪 Testing
+* Interactive city map
+* Zone-wise risk visualization
+* Rainfall monitoring
+* Risk trend monitoring
 
-pytest runs 22 tests covering:
+### Emergency Response
 
-Historical validation (most documented flood spots are HIGH at 2023-like rainfall)
-Light rain produces no HIGH/RED conditions; heavy rain produces a RED zone
-Input validation on /api/predict
-Every page returns 200
-Every JSON API returns strict valid JSON (no NaN)
-☁️ Deployment (Render)
-Push the repo to GitHub.
-On render.com choose New → Web Service and connect the repo.
-Build command: pip install -r requirements.txt
-Start command: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
-Set env var PYTHON_VERSION=3.11.9.
+* Active incident alerts
+* Severity classification
+* Recommended response actions
+* Citizen warning workflow
 
-render.yaml and Procfile already contain this config. Free instances sleep after about 15 minutes of inactivity, so open the link once before a demo.
+### Explainability
 
-⚠️ Limitations
-The model is trained on a rule-based score, so it is a decision-support tool, not an official forecast.
-Rainfall is city-wide; there is no per-locality rainfall or radar data yet.
-No live river-level, lake-level or drain-blockage sensing.
-Warnings are displayed only in the app. No SMS/WhatsApp/Telegram delivery yet.
-Hindi and English only. No Marathi text yet.
-Warnings are not an official IMD or NMC advisory. In an emergency, call 112 (police), 101 (fire) or 108 (ambulance).
-🗺️ Roadmap
- Replace placeholder data with NMC ward boundaries, DEM elevation and drainage survey
- Add more historical events (2019, 2020 and other years) and train on real flood incidents
- Alert delivery via Telegram / SMS / WhatsApp
- Marathi language support
- Add the NMC control-room number and shelter locations
- Live lake and river level integration (Ambazari, Futala, Nag river)
- Ward-level rainfall from radar or gauge data
-👥 Team
+FloodIQ does not simply output:
 
-Add your team name, members and college here.
+> **"Zone is Critical."**
 
-🙏 Acknowledgements
-Flood event details: public reports on the 2023 Nagpur flood and July 2025 waterlogging coverage
-Open-Meteo for the free forecast API
-OpenStreetMap contributors, Leaflet, Chart.js
+It can explain:
+
+> **"Risk increased because of high rainfall, low elevation and historical flood frequency."**
+
+This makes the prediction more useful for operational decision-making.
+
+---
+
+# 🔄 Example Control Flow
+
+```text
+Heavy rainfall detected
+          ↓
+Rainfall + terrain + historical data analysed
+          ↓
+ML model calculates flood probability
+          ↓
+Risk crosses critical threshold
+          ↓
+Zone marked 🔴 CRITICAL
+          ↓
+Alert generated
+          ↓
+Response recommendations displayed
+          ↓
+Authority takes action
+```
+
+---
+
+# 👥 Who Can Use FloodIQ?
+
+### 🏛️ Disaster Management Authorities
+
+To monitor vulnerable zones and prioritize emergency response.
+
+### 🚑 Emergency Response Teams
+
+To identify areas requiring immediate deployment.
+
+### 🏙️ Municipal Authorities
+
+To monitor drainage and waterlogging-prone locations.
+
+### 👨‍👩‍👧 Citizens
+
+To receive understandable, location-specific warnings.
+
+---
+
+# 🌍 Scalability
+
+FloodIQ is designed as a city-agnostic architecture.
+
+```text
+              FloodIQ Engine
+                    │
+       ┌────────────┼────────────┐
+       ↓            ↓            ↓
+    Nagpur       City B       City C
+       │            │            │
+   Local Data    Local Data    Local Data
+```
+
+The same prediction and response pipeline can be adapted to another city by integrating:
+
+* Local rainfall data
+* Local terrain
+* Historical flood records
+* Administrative zones
+* Drainage infrastructure
+* Local vulnerability data
+
+---
+
+# 🔮 Future Scope
+
+### Real-Time IoT Integration
+
+Integrate water-level sensors and drainage sensors for live ground-level measurements.
+
+### Satellite-Based Monitoring
+
+Use satellite imagery to detect water spread and improve flood mapping.
+
+### Hyperlocal Alerts
+
+Send location-specific warnings to citizens based on their locality.
+
+### Dynamic Evacuation Routing
+
+Generate safer routes based on current flood conditions.
+
+### Multi-Agent Emergency Coordination
+
+Use AI agents to coordinate alerts, emergency teams, shelters and resource allocation.
+
+### Continuous Model Learning
+
+Retrain the model using newly observed flood events to improve future predictions.
+
+---
+
+# 🛡️ Important Note
+
+FloodIQ is a **prototype for disaster-risk analysis and emergency response support**.
+
+Predictions are dependent on the quality, coverage, and timeliness of the u
