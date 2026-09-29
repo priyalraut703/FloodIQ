@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Zone Warnings — FloodIQ Nagpur{% endblock %}
+{% block page_title %}Zone Warnings{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Zone-wise Flood Warnings</h1>
+<p>Rainfall + terrain + flood history → colour-coded warnings for each NMC zone</p></div></div>
+<div class="card" style="padding:16px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+  <button class="btn btn-primary" id="tabAuth" onclick="setView('auth')">Authority view</button>
+  <button class="btn" id="tabCit" onclick="setView('cit')">Citizen view</button>
+  <label style="margin-left:auto">24h rain (mm):
+    <input type="number" id="rain" class="form-input" style="width:90px" placeholder="auto" min="0" max="300"/></label>
+  <button class="btn" onclick="load()">Apply</button>
+  <button class="btn" onclick="document.getElementById('rain').value='';load()">Use forecast</button>
+</div>
+<div id="meta" style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)">Loading…</div>
+<div id="auth"></div>
+<div id="cit" style="display:none">
+  <select id="area" class="form-input" onchange="loadCitizen()" style="max-width:320px;margin-bottom:12px"></select>
+  <div id="citCard"></div>
+</div>
+<style>.zc{border-left:6px solid var(--c);padding:14px 16px;margin-bottom:12px}.zc ul{margin:6px 0 0 18px;padding:0;font-size:13px}
+.sev{font-weight:700;color:var(--c)}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:700px){.g2{grid-template-columns:1fr}}</style>
+{% endblock %}
+{% block extra_js %}
+<script>
+const COL={RED:'#ef4444',ORANGE:'#f97316',YELLOW:'#eab308',GREEN:'#22c55e'};
+let view='auth';
+const q=()=>{const v=document.getElementById('rain').value;return v?('rain='+v):''};
+const li=a=>'<ul>'+a.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
+function setView(v){view=v;document.getElementById('auth').style.display=v=='auth'?'':'none';
+  document.getElementById('cit').style.display=v=='cit'?'':'none';
+  document.getElementById('tabAuth').className='btn'+(v=='auth'?' btn-primary':'');
+  document.getElementById('tabCit').className='btn'+(v=='cit'?' btn-primary':'');if(v=='cit')loadCitizen();}
+async function load(){
+  const d=await (await fetch('/api/zone-alerts?'+q())).json();
+  document.getElementById('meta').innerHTML=`<b>${d.rainfall_mm_24h} mm / 24h</b> · source: ${d.rain_source} · ${d.window}`;
+  document.getElementById('auth').innerHTML=d.zones.map(z=>`<div class="card zc" style="--c:${COL[z.severity]}">
+    <span class="sev">${z.severity}</span> — <b>${z.zone} zone</b>
+    <span style="float:right;font-size:13px">${z.high} high · ${z.medium} medium of ${z.wards} localities · ${z.population_at_risk.toLocaleString()} people at risk</span>
+    <div style="font-size:13px;margin-top:4px">Watch: ${z.top_wards.join(', ')}</div>
+    <div class="g2"><div><b>Authorities</b>${li(z.authority_actions)}</div><div><b>Citizens</b>${li(z.citizen_advice)}<div style="font-size:13px;margin-top:4px">${z.hindi}</div></div></div></div>`).join('')
+    +`<div class="card" style="padding:12px;font-size:13px">Emergency: ${Object.entries(d.emergency).map(([k,v])=>k+' <b>'+v+'</b>').join(' · ')}</div>`;
+  if(view=='cit')loadCitizen();
+}
+async function loadCitizen(){
+  const sel=document.getElementById('area');
+  if(!sel.options.length){const w=await (await fetch('/api/wards')).json();
+    sel.innerHTML=w.wards.map(x=>x.ward_name).sort().map(n=>`<option>${n}</option>`).join('');}
+  const r=await (await fetch('/api/citizen?area='+encodeURIComponent(sel.value)+'&'+q())).json();
+  document.getElementById('citCard').innerHTML=`<div class="card zc" style="--c:${COL[r.alert]};padding:20px">
+   <div style="font-size:26px" class="sev">${r.alert} — ${r.risk_level} flood risk</div>
+   <div>${r.area}, ${r.zone} zone · ${r.rainfall_mm_24h} mm rain expected (${r.rain_source})</div>
+   <h4>What to do</h4>${li(r.advice)}<p style="margin-top:8px">${r.hindi}</p>
+   <p style="font-size:13px;color:var(--text-secondary)">History: ${r.history}</p></div>`;
+}
+load();
+</script>
+{% endblock %}
